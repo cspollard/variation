@@ -21,6 +21,7 @@ library
   -- other-extensions:
   build-depends:       base == 4.9.*
                      , cereal == 0.5.*
+                     , deepseq == 1.4.*
                      , lens == 4.15.*
                      , containers == 0.5.*
   hs-source-dirs:      src

@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 
 -- A lot of this was inspired by
@@ -10,6 +11,7 @@
 module Data.Variation where
 
 import           Control.Applicative
+import           Control.DeepSeq
 import           Control.Lens
 import           Data.Functor.Classes
 import qualified Data.Map.Strict      as M
@@ -24,6 +26,8 @@ data Variations k a =
     { _nominal    :: !a
     , _variations :: !(M.Map k a)
     } deriving (Generic, Show)
+
+instance (NFData a, NFData k) => NFData (Variations k a) where
 
 makeLenses ''Variations
 
