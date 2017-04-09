@@ -10,6 +10,8 @@
 
 module Data.Variation where
 
+import Data.Align
+import Data.These
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Lens
@@ -21,98 +23,105 @@ import           Data.Serialize
 import           GHC.Generics
 
 
-data Variations k a =
+data Variations m a =
   Variations
     { _nominal    :: !a
-    , _variations :: !(M.Map k a)
+    , _variations :: !(m a)
     } deriving (Generic, Show)
 
-instance (NFData a, NFData k) => NFData (Variations k a) where
+instance (NFData a, NFData (m a)) => NFData (Variations m a) where
 
 makeLenses ''Variations
 
-variationsToMap :: Ord k => k -> Variations k a -> M.Map k a
-variationsToMap nomname (Variations nom def) = M.insert nomname nom def
+-- variationsToMap :: Ord k => k -> Variations m a -> M.Map m a
+-- variationsToMap nomname (Variations nom def) = M.insert nomname nom def
 
-instance (Ord k, Serialize k, Serialize a) => Serialize (Variations k a)
+instance (Serialize (m a), Serialize a) => Serialize (Variations m a)
 
-type instance Index (Variations k a) = k
-type instance IxValue (Variations k a) = a
+type instance Index (Variations m a) = Index (m a)
+type instance IxValue (Variations m a) = IxValue (m a)
 
-instance Ord k => Ixed (Variations k a) where
-  ix k = variations.ix k
-  {-# INLINABLE ix #-}
+-- TODO
+-- think about this...
+-- do we really want to return Nothing or the nominal?
+-- instance Ixed (m a) => Ixed (Variations m a) where
+--   ix k = variations.ix k
+--   {-# INLINABLE ix #-}
+--
+-- instance Ord k => At (Variations m a) where
+--   at k = variations.at k
+--   {-# INLINABLE at #-}
 
-instance Ord k => At (Variations k a) where
-  at k = variations.at k
-  {-# INLINABLE at #-}
-
-instance Ord k => Functor (Variations k) where
+instance Functor m => Functor (Variations m) where
   fmap f (Variations n m) = Variations (f n) (fmap f m)
   {-# INLINABLE fmap #-}
 
-
-instance Show k => Show1 (Variations k) where
-  liftShowsPrec sp sl d (Variations n m) =
-    showsBinaryWith sp (liftShowsPrec sp sl) "Variations" d n m
-
-instance (Ord k, Semigroup a) => Semigroup (Variations k a) where
-  (<>) = liftA2 (<>)
-  {-# INLINABLE (<>) #-}
-
-instance (Ord k, Monoid a) => Monoid (Variations k a) where
-  mempty = pure mempty
-  mappend = liftA2 mappend
-  {-# INLINABLE mempty #-}
-  {-# INLINABLE mappend #-}
-
-
-
-instance Ord k => Applicative (Variations k) where
-  pure = flip Variations M.empty
-  -- if the same variation appears in both maps
-  -- then we apply the function to the corresponding value
-  -- otherwise "fill in" with the nominal value
+instance Align m => Applicative (Variations m) where
+  pure = flip Variations nil
   Variations f fs <*> Variations x xs =
-    Variations
-      (f x)
-      ( M.mergeWithKey
-        (\_ g -> Just . g)
-        (fmap ($ x))
-        (fmap f)
-        fs
-        xs
-      )
+    Variations (f x) (alignWith g fs xs)
+    where
+      g = these ($ x) f ($)
   {-# INLINABLE pure #-}
   {-# INLINABLE (<*>) #-}
 
-instance Ord k => Monad (Variations k) where
+-- TODO
+-- HERE
+-- I think we can encode the "join" in a one-liner with align/these
+-- not quite sure how yet, though
+instance Align m => Monad (Variations m) where
   return = pure
-  m >>= f = joinV (f <$> m)
-  {-# INLINABLE return #-}
-  {-# INLINABLE (>>=) #-}
+  vx >>= f = joinV . fmap f $ vx
 
-(!) :: Ord k => Variations k a -> k -> a
-(!) (Variations n m) = fromMaybe n . flip M.lookup m
-{-# INLINABLE (!) #-}
+
+joinV :: Align m => Variations m (Variations m a) -> Variations m a
+joinV (Variations (Variations x mx) mvx) =
+  Variations x . view nominal $ sequenceA mvx
+
+-- (!) :: Ord k => Variations m a -> k -> a
+-- (!) (Variations n m) = fromMaybe n . flip M.lookup m
+-- {-# INLINABLE (!) #-}
 
 -- how we join variations:
 -- nominal -> nominal
 -- if we have "on-diagonal" elements of mm, use them
 -- else use nominal <*> varied from mm
 -- else use varied <*> nominal
-joinV :: Ord k => Variations k (Variations k v) -> Variations k v
-joinV (Variations (Variations n m) mm) =
-  Variations n (M.mapWithKey (flip (!)) mm `M.union` m)
-{-# INLINABLE joinV #-}
+-- joinV :: Ord k => Variations m (Variations m v) -> Variations m v
+-- joinV (Variations (Variations n m) mm) =
+--   Variations n (M.mapWithKey (flip (!)) mm `M.union` m)
+-- {-# INLINABLE joinV #-}
 
-instance Ord k => Foldable (Variations k) where
-  foldMap f (Variations n m) = f n `mappend` foldMap f m
-  {-# INLINABLE foldMap #-}
+-- instance Show1 m => Show1 (Variations m) where
+--   liftShowsPrec sp sl d (Variations n m) =
+--     showsBinaryWith sp (liftShowsPrec sp sl) "Variations" d n m
+--
+-- instance Semigroup a => Semigroup (Variations m a) where
+--   (<>) = liftA2 (<>)
+--   {-# INLINABLE (<>) #-}
+--
+-- instance (Ord k, Monoid a) => Monoid (Variations m a) where
+--   mempty = pure mempty
+--   mappend = liftA2 mappend
+--   {-# INLINABLE mempty #-}
+--   {-# INLINABLE mappend #-}
 
-instance Ord k => Traversable (Variations k) where
-  traverse f (Variations n m) = Variations <$> f n <*> traverse f m
-  {-# INLINABLE traverse #-}
+
+
+
+-- instance Ord k => Monad (Variations k) where
+--   return = pure
+--   m >>= f = joinV (f <$> m)
+--   {-# INLINABLE return #-}
+--   {-# INLINABLE (>>=) #-}
+
+-- instance Ord k => Foldable (Variations k) where
+--   foldMap f (Variations n m) = f n `mappend` foldMap f m
+--   {-# INLINABLE foldMap #-}
+--
+-- instance Ord k => Traversable (Variations k) where
+--   traverse f (Variations n m) = Variations <$> f n <*> traverse f m
+--   {-# INLINABLE traverse #-}
 
 instance Show2 M.Map where
   liftShowsPrec2 spk slk spv slv d m =
