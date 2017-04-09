@@ -69,14 +69,14 @@ instance Align m => Applicative (Variations m) where
 -- HERE
 -- I think we can encode the "join" in a one-liner with align/these
 -- not quite sure how yet, though
-instance Align m => Monad (Variations m) where
-  return = pure
-  vx >>= f = joinV . fmap f $ vx
+-- instance Align m => Monad (Variations m) where
+--   return = pure
+--   vx >>= f = joinV . fmap f $ vx
 
 
-joinV :: Align m => Variations m (Variations m a) -> Variations m a
-joinV (Variations (Variations x mx) mvx) =
-  Variations x . view nominal $ sequenceA mvx
+-- joinV :: Align m => Variations m (Variations m a) -> Variations m a
+-- joinV (Variations (Variations x mx) mvx) =
+--   Variations x . view nominal $ sequenceA mvx
 
 -- (!) :: Ord k => Variations m a -> k -> a
 -- (!) (Variations n m) = fromMaybe n . flip M.lookup m
