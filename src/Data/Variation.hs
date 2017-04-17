@@ -14,10 +14,8 @@ import           Control.DeepSeq
 import           Control.Lens        hiding ((<.>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
--- import           Data.Functor.Classes
 import qualified Data.IntMap         as IM
 import qualified Data.Map            as M
-import           Data.Maybe          (fromMaybe)
 import           Data.Semigroup
 import           Data.Serialize
 import           GHC.Generics
@@ -63,12 +61,9 @@ data Variations m a =
 
 instance (NFData a, NFData (m a)) => NFData (Variations m a) where
 
-makeLenses ''Variations
-
 instance (Serialize (m a), Serialize a) => Serialize (Variations m a)
 
-type instance Index (Variations m a) = Index (m a)
-type instance IxValue (Variations m a) = IxValue (m a)
+makeLenses ''Variations
 
 
 instance (Apply m, SMonoid m) => Applicative (Variations m) where
@@ -95,8 +90,6 @@ instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
   (<>) = liftA2 (<>)
 
 
-instance
-  (Semigroup a, Monoid a, SMonoid m, Apply m)
-  => Monoid (Variations m a) where
+instance (Monoid a, SMonoid m, Apply m) => Monoid (Variations m a) where
   mempty = Variations mempty sempty
-  mappend = (<>)
+  a `mappend` b = unwrapMonoid $ WrapMonoid a <> WrapMonoid b
