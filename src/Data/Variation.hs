@@ -11,13 +11,13 @@ module Data.Variation where
 
 import           Control.Applicative
 import           Control.DeepSeq
-import           Control.Lens         hiding ((<.>))
+import           Control.Lens        hiding ((<.>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
-import           Data.Functor.Classes
-import qualified Data.IntMap          as IM
-import qualified Data.Map             as M
-import           Data.Maybe           (fromMaybe)
+-- import           Data.Functor.Classes
+import qualified Data.IntMap         as IM
+import qualified Data.Map            as M
+import           Data.Maybe          (fromMaybe)
 import           Data.Semigroup
 import           Data.Serialize
 import           GHC.Generics
@@ -60,6 +60,7 @@ data Variations m a =
     , _variations :: !(m a)
     } deriving (Generic, Show, Functor, Foldable, Traversable)
 
+
 instance (NFData a, NFData (m a)) => NFData (Variations m a) where
 
 makeLenses ''Variations
@@ -90,15 +91,12 @@ instance (Bind m, SMonoid m) => Monad (Variations m) where
     in Variations n (join mm' `sappend` nm)
   {-# INLINABLE (>>=) #-}
 
---
--- how we join variations:
--- nominal -> nominal
--- if we have "on-diagonal" elements of mm, use them
--- else use nominal <*> varied from mm
--- else use varied <*> nominal
--- joinV :: AlignWithKey m => Variations m (Variations m a) -> Variations m a
--- joinV (Variations (Variations n m) mm) =
---   Variations n $ alignWithKey f mm m
---   where
---     f k = these
--- {-# INLINABLE joinV #-}
+instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
+  (<>) = liftA2 (<>)
+
+
+instance
+  (Semigroup a, Monoid a, SMonoid m, Apply m)
+  => Monoid (Variations m a) where
+  mempty = Variations mempty sempty
+  mappend = (<>)
