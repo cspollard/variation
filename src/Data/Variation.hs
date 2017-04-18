@@ -11,14 +11,16 @@ module Data.Variation where
 
 import           Control.Applicative
 import           Control.DeepSeq
-import           Control.Lens        hiding ((<.>))
+import           Control.Lens         hiding ((<.>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
-import qualified Data.IntMap         as IM
-import qualified Data.Map            as M
+import           Data.Functor.Classes
+import qualified Data.IntMap          as IM
+import qualified Data.Map             as M
 import           Data.Semigroup
 import           Data.Serialize
 import           GHC.Generics
+
 
 class SUnit sm where
   sempty :: sm a
@@ -52,6 +54,9 @@ instance SMonoid IM.IntMap where
 
 instance Ord k => SMonoid (M.Map k) where
 
+
+
+
 data Variations m a =
   Variations
     { _nominal    :: !a
@@ -64,7 +69,6 @@ instance (NFData a, NFData (m a)) => NFData (Variations m a) where
 instance (Serialize (m a), Serialize a) => Serialize (Variations m a)
 
 makeLenses ''Variations
-
 
 instance (Apply m, SMonoid m) => Applicative (Variations m) where
   pure = flip Variations sempty
@@ -93,3 +97,18 @@ instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
 instance (Monoid a, SMonoid m, Apply m) => Monoid (Variations m a) where
   mempty = Variations mempty sempty
   a `mappend` b = unwrapMonoid $ WrapMonoid a <> WrapMonoid b
+
+instance Show1 m => Show1 (Variations m) where
+  liftShowsPrec sp sl d (Variations n m) =
+    showsBinaryWith sp (liftShowsPrec sp sl) "Variations" d n m
+
+
+instance Show2 M.Map where
+  liftShowsPrec2 spk slk spv slv d m =
+    showsUnaryWith (liftShowsPrec sp sl) "fromList" d (M.toList m)
+    where
+      sp = liftShowsPrec2 spk slk spv slv
+      sl = liftShowList2 spk slk spv slv
+
+instance Show k => Show1 (M.Map k) where
+  liftShowsPrec = liftShowsPrec2 showsPrec showList
