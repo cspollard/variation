@@ -15,8 +15,8 @@ import           Control.Lens         hiding ((<.>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
 import           Data.Functor.Classes
-import qualified Data.IntMap          as IM
-import qualified Data.Map             as M
+import qualified Data.IntMap.Strict   as IM
+import qualified Data.Map.Strict      as M
 import           Data.Semigroup
 import           Data.Serialize
 import           GHC.Generics
@@ -61,7 +61,7 @@ data Variations m a =
   Variations
     { _nominal    :: !a
     , _variations :: !(m a)
-    } deriving (Generic, Show, Functor, Foldable, Traversable)
+    } deriving (Generic, Show, Eq, Functor, Foldable, Traversable)
 
 
 instance (NFData a, NFData (m a)) => NFData (Variations m a) where
@@ -96,7 +96,6 @@ instance (Bind m, SMonoid m) => Monad (Variations m) where
 
 instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
   (<>) = liftA2 (<>)
-
 
 instance (Monoid a, SMonoid m, Apply m) => Monoid (Variations m a) where
   mempty = Variations mempty sempty
