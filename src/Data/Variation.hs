@@ -83,12 +83,16 @@ instance (Bind m, SMonoid m) => Monad (Variations m) where
   return = pure
   {-# INLINABLE return #-}
 
+  -- TODO
+  -- I'm not sure if mn or nm should be used here...
+  -- surely there's 100% overlap?
   v >>= f =
     let Variations (Variations n nm) mm = f <$> v
         mn = view nominal <$> mm
         mm' = view variations <$> mm
-    in Variations n (join mm' `sappend` nm)
+    in Variations n (join mm' `sappend` nm `sappend` mn)
   {-# INLINABLE (>>=) #-}
+
 
 instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
   (<>) = liftA2 (<>)
@@ -96,7 +100,7 @@ instance (Semigroup a, SMonoid m, Apply m) => Semigroup (Variations m a) where
 
 instance (Monoid a, SMonoid m, Apply m) => Monoid (Variations m a) where
   mempty = Variations mempty sempty
-  a `mappend` b = unwrapMonoid $ WrapMonoid a <> WrapMonoid b
+  mappend = liftA2 mappend
 
 instance Show1 m => Show1 (Variations m) where
   liftShowsPrec sp sl d (Variations n m) =

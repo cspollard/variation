@@ -27,3 +27,4 @@ library
                      , semigroupoids == 5.1.*
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-prof-options:    -Wall -fprof-auto -caf-all -rtsopts
