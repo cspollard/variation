@@ -1,60 +1,31 @@
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DeriveTraversable          #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 
-module Data.Variation where
+module Data.Variation
+  ( Variations(..), nominal, variations, module X
+  ) where
 
 import           Control.Applicative
 import           Control.DeepSeq
-import           Control.Lens         hiding ((<.>))
+import           Control.Lens             hiding ((<.>))
+import           Control.Monad.State      hiding (join)
+import           Control.Monad.Trans
+import           Control.Monad.Writer     hiding (join, (<>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
 import           Data.Functor.Classes
-import qualified Data.IntMap.Strict   as IM
-import qualified Data.Map.Strict      as M
 import           Data.Semigroup
 import           Data.Serialize
+import           Data.SMonoid
+import           Data.Variation.Instances as X
 import           GHC.Generics
-
-
-class SUnit sm where
-  sempty :: sm a
-
-instance SUnit [] where
-  sempty = []
-
-instance SUnit IM.IntMap where
-  sempty = IM.empty
-
-instance SUnit (M.Map k) where
-  sempty = M.empty
-
-class SAppend sm where
-  sappend :: sm a -> sm a -> sm a
-
-instance SAppend [] where
-  sappend = (++)
-
-instance SAppend IM.IntMap where
-  sappend = IM.union
-
-instance Ord k => SAppend (M.Map k) where
-  sappend = M.union
-
-class (SUnit sm, SAppend sm) => SMonoid sm where
-
-instance SMonoid [] where
-
-instance SMonoid IM.IntMap where
-
-instance Ord k => SMonoid (M.Map k) where
-
-
 
 
 data Variations m a =
@@ -104,14 +75,3 @@ instance (Monoid a, SMonoid m, Apply m) => Monoid (Variations m a) where
 instance Show1 m => Show1 (Variations m) where
   liftShowsPrec sp sl d (Variations n m) =
     showsBinaryWith sp (liftShowsPrec sp sl) "Variations" d n m
-
-
-instance Show2 M.Map where
-  liftShowsPrec2 spk slk spv slv d m =
-    showsUnaryWith (liftShowsPrec sp sl) "fromList" d (M.toList m)
-    where
-      sp = liftShowsPrec2 spk slk spv slv
-      sl = liftShowList2 spk slk spv slv
-
-instance Show k => Show1 (M.Map k) where
-  liftShowsPrec = liftShowsPrec2 showsPrec showList
