@@ -15,6 +15,7 @@ module Data.Variation
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Lens             hiding ((<.>))
+import qualified Control.Monad            as M (join)
 import           Control.Monad.State      hiding (join)
 import           Control.Monad.Trans
 import           Control.Monad.Writer     hiding (join, (<>))
@@ -26,6 +27,28 @@ import           Data.Serialize
 import           Data.SMonoid
 import           Data.Variation.Instances as X
 import           GHC.Generics
+
+
+newtype VariationT f m a = VariationT { runVariationT :: m (Variations f a) }
+
+instance (Functor f, Functor m) => Functor (VariationT f m) where
+  fmap f = VariationT . (fmap.fmap) f . runVariationT
+
+instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) where
+  pure = VariationT . pure . pure
+  VariationT f <*> VariationT x = VariationT $ liftA2 (<*>) f x
+
+
+instance
+  (Traversable f, Bind f, SMonoid f, Monad m)
+  => Monad (VariationT f m) where
+
+  return = pure
+  v >>= f = VariationT $ do
+    x <- runVariationT v
+    xs <- traverse (runVariationT . f) x
+    return $ M.join xs
+
 
 
 data Variations m a =
