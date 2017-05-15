@@ -9,7 +9,7 @@
 
 
 module Data.Variation
-  ( Variations(..), nominal, variations, module X
+  ( VariationT(..), Variations(..), nominal, variations, module X
   ) where
 
 import           Control.Applicative
@@ -48,6 +48,16 @@ instance
     x <- runVariationT v
     xs <- traverse (runVariationT . f) x
     return $ M.join xs
+
+instance (Traversable f, Bind f, SMonoid f) => MonadTrans (VariationT f) where
+  lift = VariationT . fmap pure
+
+
+instance
+  (MonadIO m, Traversable f, Bind f, SMonoid f)
+  => MonadIO (VariationT f m) where
+
+  liftIO = lift . liftIO
 
 
 
