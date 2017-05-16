@@ -60,6 +60,18 @@ instance
   liftIO = lift . liftIO
 
 
+instance
+  (Applicative m, Apply f, SMonoid f, Semigroup a)
+  => Semigroup (VariationT f m a) where
+  (<>) = liftA2 (<>)
+
+instance
+  (Applicative m, Monoid a, SMonoid f, Apply f)
+  => Monoid (VariationT f m a) where
+  mempty = pure mempty
+  mappend = liftA2 mappend
+
+
 
 data Variations m a =
   Variations
