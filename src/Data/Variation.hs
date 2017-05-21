@@ -10,7 +10,7 @@
 module Data.Variation
   ( VariationT(..), variation, variationT
   , Variation, runVariation
-  , nominal, variations
+  , nominal, variations, getNominal, getVariations
   , module X
   ) where
 
