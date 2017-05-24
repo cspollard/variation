@@ -18,7 +18,6 @@ import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Lens                hiding ((<.>))
 import qualified Control.Monad               as M (join)
-import qualified Control.Monad.Fail          as MF
 import           Control.Monad.Morph
 import           Control.Monad.State         hiding (join)
 import           Control.Monad.Trans
@@ -105,16 +104,9 @@ instance
   liftIO = lift . liftIO
 
 
-instance (MF.MonadFail m, Traversable f, Bind f, SMonoid f)
-  => MF.MonadFail (VariationT f m) where
-  fail = lift . MF.fail
-
 
 instance MFunctor (VariationT f) where
   hoist f = VariationT . f . runVariationT
-
--- instance (SMonoid f, Bind f, Traversable f) => MMonad (VariationT f) where
---   embed f (VariationT v) = undefined
 
 instance
   (Applicative m, Apply f, SMonoid f, Semigroup a)
@@ -132,27 +124,3 @@ variation n vs = variationT (pure n) (pure vs)
 
 variationT :: Applicative m => m a -> m (f a) -> VariationT f m a
 variationT n vs = VariationT $ Pair <$> (Identity <$> n) <*> vs
-
-
--- class MComonad t where
---   unembed :: Functor m => t m a -> m (t Identity a)
---
--- instance MComonad (VariationT f) where
---   unembed (VariationT x) = VariationT . Identity <$> x
---
--- instance MComonad (WriterT w) where
---   unembed (WriterT x) = WriterT . Identity <$> x
---
--- instance MComonad MaybeT where
---   unembed (MaybeT x) = MaybeT . Identity <$> x
---
---
--- class Asdf f where
---   asdf :: (MonadTrans g, Monad m, Monad (g m)) => g m (f m a) -> f (g m) a
---
--- instance Asdf MaybeT where
---   asdf x = MaybeT $ M.join $ lift . runMaybeT <$> x
---
---
--- instance (Functor (g Identity), Asdf f, MonadTrans g, Monad (g Identity), MComonad f, MComonad g) => MComonad (ComposeT f g) where
---   unembed = fmap (ComposeT . asdf) . unembed . unembed . getComposeT
