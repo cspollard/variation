@@ -18,6 +18,8 @@ import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Lens                hiding ((<.>))
 import qualified Control.Monad               as M (join)
+import           Control.Monad.Catch
+import qualified Control.Monad.Fail          as MF
 import           Control.Monad.Morph
 import           Control.Monad.State         hiding (join)
 import           Control.Monad.Trans
@@ -41,6 +43,17 @@ newtype VariationT f m a =
   deriving (Generic, Functor, Foldable, Traversable)
 
 type Variation f = VariationT f Identity
+
+instance (Show1 f, Show1 m) => Show1 (VariationT f m) where
+  liftShowsPrec f g n (VariationT mv) =
+    showsUnaryWith
+      (liftShowsPrec (liftShowsPrec f g) (liftShowList f g))
+      "VariationT"
+      n
+      mv
+
+instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
+  showsPrec = showsPrec1
 
 runVariation :: VariationT f Identity a -> P.Product Identity f a
 runVariation = runIdentity . runVariationT
@@ -103,6 +116,18 @@ instance
   => MonadIO (VariationT f m) where
   liftIO = lift . liftIO
 
+
+instance (MonadIO m, Traversable f, Bind f, SMonoid f, MF.MonadFail m)
+  => MF.MonadFail (VariationT f m) where
+  fail = lift . fail
+
+instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadThrow m)
+  => MonadThrow (VariationT f m) where
+  throwM = lift . throwM
+
+instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m)
+  => MonadCatch (VariationT f m) where
+  catch (VariationT mx) f = VariationT $ catch mx (runVariationT . f)
 
 
 instance MFunctor (VariationT f) where
