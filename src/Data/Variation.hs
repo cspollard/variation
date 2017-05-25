@@ -1,10 +1,7 @@
-{-# LANGUAGE DeriveFoldable             #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 
 module Data.Variation
@@ -40,9 +37,21 @@ import           GHC.Generics
 
 newtype VariationT f m a =
   VariationT { runVariationT :: m (P.Product Identity f a) }
-  deriving (Generic, Functor, Foldable, Traversable)
+  deriving Generic
 
 type Variation f = VariationT f Identity
+
+forceProd :: P.Product f g a -> P.Product f g a
+forceProd (Pair fa ga) = fa `seq` ga `seq` Pair fa ga
+
+instance (Functor m, Functor f) => Functor (VariationT f m) where
+  fmap f (VariationT mx) = VariationT $ forceProd . fmap f <$> mx
+
+instance (Foldable m, Foldable f) => Foldable (VariationT f m) where
+  foldMap f (VariationT mx) = foldMap (foldMap f) mx
+
+instance (Traversable m, Traversable f) => Traversable (VariationT f m) where
+  traverse f (VariationT mx) = VariationT <$> traverse (fmap forceProd . traverse f) mx
 
 instance (Show1 f, Show1 m) => Show1 (VariationT f m) where
   liftShowsPrec f g n (VariationT mv) =
@@ -86,7 +95,7 @@ variations f (VariationT mp) = VariationT $ do
 instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) where
   pure = VariationT . pure . flip Pair sempty . pure
 
-  VariationT f <*> VariationT x = VariationT $ g <$> f <*> x
+  VariationT f <*> VariationT x = VariationT . fmap forceProd $ g <$> f <*> x
     where
       g (Pair f1 f2) (Pair x1 x2) =
         Pair
@@ -99,7 +108,7 @@ instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) whe
 instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) where
   return = pure
 
-  VariationT x >>= f = VariationT $ do
+  VariationT x >>= f = VariationT . fmap forceProd $ do
     -- fmap f <$> x :: m (Product Identity f (VariationT f m a))
     (Pair (Identity vfmb) fvfmb) <- fmap f <$> x
     (Pair nom fv) <- runVariationT vfmb
