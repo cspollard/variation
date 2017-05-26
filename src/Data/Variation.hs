@@ -7,9 +7,8 @@
 
 
 module Data.Variation
-  ( VariationT(..), variationT
+  ( VariationT, variationT, runVariationT
   , Variation, variation, runVariation
-  , Pair(..), fstP, sndP
   , nominal, variations, getNominal, getVariations
   , module X
   ) where
@@ -44,7 +43,7 @@ sndP :: Pair f a -> f a
 sndP (Pair _ xs) = xs
 
 newtype VariationT f m a =
-  VariationT { runVariationT :: m (Pair f a) }
+  VariationT { unVT :: m (Pair f a) }
   deriving (Generic, Functor, Foldable, Traversable)
 
 
@@ -52,8 +51,12 @@ instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
 
 type Variation f = VariationT f Identity
 
-runVariation :: Variation f a -> Pair f a
-runVariation = runIdentity . runVariationT
+runVariation :: Variation f a -> (a, f a)
+runVariation (VariationT (Identity (Pair x xs))) = (x, xs)
+
+
+runVariationT :: Functor m => VariationT f m a -> m (Variation f a)
+runVariationT (VariationT mp) = fmap (VariationT . Identity) mp
 
 
 instance Show1 f => Show1 (Pair f) where
@@ -83,10 +86,10 @@ instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
 
 
 getNominal :: Functor m => VariationT f m a -> m a
-getNominal = fmap fstP . runVariationT
+getNominal = fmap fstP . unVT
 
 getVariations :: Functor m => VariationT f m a -> m (f a)
-getVariations = fmap sndP . runVariationT
+getVariations = fmap sndP . unVT
 
 nominal :: Monad m => (a -> m a) -> VariationT f m a -> VariationT f m a
 nominal f (VariationT mp) = VariationT $ do
@@ -122,8 +125,8 @@ instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) w
   VariationT x >>= f = VariationT $ do
 
     (Pair vfmb fvfmb) <- fmap f <$> x
-    (Pair nom fv) <- runVariationT vfmb
-    (Pair nv ffb) <- runVariationT $ sequence fvfmb
+    (Pair nom fv) <- unVT vfmb
+    (Pair nv ffb) <- unVT $ sequence fvfmb
     return . Pair nom $ join ffb `sappend` nv `sappend` fv
 
 
@@ -149,11 +152,11 @@ instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadThrow m)
 
 instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m)
   => MonadCatch (VariationT f m) where
-  catch (VariationT mx) f = VariationT $ catch mx (runVariationT . f)
+  catch (VariationT mx) f = VariationT $ catch mx (unVT . f)
 
 
 instance MFunctor (VariationT f) where
-  hoist f = VariationT . f . runVariationT
+  hoist f = VariationT . f . unVT
 
 
 instance
