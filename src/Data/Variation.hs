@@ -7,8 +7,9 @@
 
 
 module Data.Variation
-  ( VariationT, variationT, runVariationT
+  ( VariationT(..), variationT
   , Variation, variation, runVariation
+  , Pair(..), fstP, sndP
   , nominal, variations, getNominal, getVariations
   , module X
   ) where
@@ -43,20 +44,15 @@ sndP :: Pair f a -> f a
 sndP (Pair _ xs) = xs
 
 newtype VariationT f m a =
-  VariationT { unVariationT :: m (Pair f a) }
+  VariationT { runVariationT :: m (Pair f a) }
   deriving (Generic, Functor, Foldable, Traversable)
 
 
 instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
 
-runVariationT :: Functor m => VariationT f m a -> m (a, f a)
-runVariationT = fmap toTup . unVariationT
-  where
-    toTup (Pair x xs) = (x, xs)
-
 type Variation f = VariationT f Identity
 
-runVariation :: Variation f a -> (a, f a)
+runVariation :: Variation f a -> Pair f a
 runVariation = runIdentity . runVariationT
 
 
@@ -87,10 +83,10 @@ instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
 
 
 getNominal :: Functor m => VariationT f m a -> m a
-getNominal = fmap fst . runVariationT
+getNominal = fmap fstP . runVariationT
 
 getVariations :: Functor m => VariationT f m a -> m (f a)
-getVariations = fmap snd . runVariationT
+getVariations = fmap sndP . runVariationT
 
 nominal :: Monad m => (a -> m a) -> VariationT f m a -> VariationT f m a
 nominal f (VariationT mp) = VariationT $ do
@@ -119,14 +115,15 @@ instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) whe
 
   VariationT f <*> VariationT x = VariationT $ liftA2 (<*>) f x
 
+
 instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) where
   return = pure
 
   VariationT x >>= f = VariationT $ do
 
     (Pair vfmb fvfmb) <- fmap f <$> x
-    (Pair nom fv) <- unVariationT vfmb
-    (Pair nv ffb) <- unVariationT $ sequence fvfmb
+    (Pair nom fv) <- runVariationT vfmb
+    (Pair nv ffb) <- runVariationT $ sequence fvfmb
     return . Pair nom $ join ffb `sappend` nv `sappend` fv
 
 
@@ -144,22 +141,26 @@ instance (MonadIO m, Traversable f, Bind f, SMonoid f, MF.MonadFail m)
   => MF.MonadFail (VariationT f m) where
   fail = lift . fail
 
+
 instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadThrow m)
   => MonadThrow (VariationT f m) where
   throwM = lift . throwM
 
+
 instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m)
   => MonadCatch (VariationT f m) where
-  catch (VariationT mx) f = VariationT $ catch mx (unVariationT . f)
+  catch (VariationT mx) f = VariationT $ catch mx (runVariationT . f)
 
 
 instance MFunctor (VariationT f) where
-  hoist f = VariationT . f . unVariationT
+  hoist f = VariationT . f . runVariationT
+
 
 instance
   (Applicative m, Apply f, SMonoid f, Semigroup a)
   => Semigroup (VariationT f m a) where
   (<>) = liftA2 (<>)
+
 
 instance
   (Applicative m, Monoid a, SMonoid f, Apply f)
@@ -167,8 +168,10 @@ instance
   mempty = pure mempty
   mappend = liftA2 mappend
 
+
 variation :: Applicative m => a -> f a -> VariationT f m a
 variation n vs = variationT (pure n) (pure vs)
+
 
 variationT :: Applicative m => m a -> m (f a) -> VariationT f m a
 variationT n vs = VariationT $ liftA2 Pair n vs
