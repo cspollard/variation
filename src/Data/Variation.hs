@@ -1,10 +1,8 @@
-{-# LANGUAGE DeriveAnyClass       #-}
 {-# LANGUAGE DeriveFoldable       #-}
 {-# LANGUAGE DeriveFunctor        #-}
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE DeriveTraversable    #-}
 {-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 
@@ -16,30 +14,27 @@ module Data.Variation
   ) where
 
 import           Control.Applicative
-import           Control.DeepSeq
-import           Control.Lens                hiding ((<.>))
-import qualified Control.Monad               as M (join)
+import qualified Control.Monad            as M (join)
 import           Control.Monad.Catch
-import qualified Control.Monad.Fail          as MF
+import qualified Control.Monad.Fail       as MF
 import           Control.Monad.Morph
-import           Control.Monad.State         hiding (join)
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Compose
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Writer        hiding (join, (<>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
 import           Data.Functor.Classes
+import           Data.Functor.Identity
 import           Data.Semigroup
 import           Data.Serialize
 import           Data.SMonoid
-import           Data.Variation.Instances    as X
+import           Data.Variation.Instances as X
 import           GHC.Generics
 
 
 -- strict tuple
 data Pair f a = Pair !a !(f a)
   deriving (Generic, Functor, Foldable, Traversable)
+
+instance (Serialize a, Serialize (f a)) => Serialize (Pair f a) where
 
 fstP :: Pair f a -> a
 fstP (Pair x _) = x
@@ -50,6 +45,9 @@ sndP (Pair _ xs) = xs
 newtype VariationT f m a =
   VariationT { unVariationT :: m (Pair f a) }
   deriving (Generic, Functor, Foldable, Traversable)
+
+
+instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
 
 runVariationT :: Functor m => VariationT f m a -> m (a, f a)
 runVariationT = fmap toTup . unVariationT
