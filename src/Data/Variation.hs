@@ -123,7 +123,6 @@ instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) w
   return = pure
 
   VariationT x >>= f = VariationT $ do
-
     (Pair vfmb fvfmb) <- fmap f <$> x
     (Pair nom fv) <- unVT vfmb
     (Pair nv ffb) <- unVT $ sequence fvfmb
@@ -131,7 +130,7 @@ instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) w
 
 
 instance (Traversable f, Bind f, SMonoid f) => MonadTrans (VariationT f) where
-  lift = VariationT . fmap (flip Pair sempty)
+  lift = VariationT . fmap pure
 
 
 instance
