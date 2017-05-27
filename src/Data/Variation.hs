@@ -14,6 +14,7 @@ module Data.Variation
   ) where
 
 import           Control.Applicative
+import           Control.DeepSeq
 import qualified Control.Monad            as M (join)
 import           Control.Monad.Catch
 import qualified Control.Monad.Fail       as MF
@@ -33,6 +34,8 @@ import           GHC.Generics
 -- strict tuple
 data Pair f a = Pair !a !(f a)
   deriving Generic
+
+instance (NFData a, NFData (f a)) => NFData (Pair f a)
 
 instance (Serialize a, Serialize (f a)) => Serialize (Pair f a) where
 
@@ -58,6 +61,10 @@ sndP (Pair _ xs) = xs
 newtype VariationT f m a =
   VariationT { unVT :: m (Pair f a) }
   deriving Generic
+
+instance
+  (NFData a, NFData (f a), NFData (m (Pair f a)))
+  => NFData (VariationT f m a)
 
 instance (Functor f, Functor m) => Functor (VariationT f m) where
   fmap f (VariationT mp) = VariationT $ (fmap.fmap) f mp
