@@ -99,8 +99,10 @@ instance (Show1 f, Show1 m) => Show1 (VariationT f m) where
       n
       mv
 
+
 instance (Show1 f, Show a) => Show (Pair f a) where
   showsPrec = showsPrec1
+
 
 instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
   showsPrec = showsPrec1
@@ -109,14 +111,17 @@ instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
 getNominal :: Functor m => VariationT f m a -> m a
 getNominal = fmap fstP . unVT
 
+
 getVariations :: Functor m => VariationT f m a -> m (f a)
 getVariations = fmap sndP . unVT
+
 
 nominal :: Monad m => (a -> m a) -> VariationT f m a -> VariationT f m a
 nominal f (VariationT mp) = VariationT $ do
   Pair x xs <- mp
   x' <- f x
   return $ Pair x' xs
+
 
 variations :: Monad m => (f a -> m (f a)) -> VariationT f m a -> VariationT f m a
 variations f (VariationT mp) = VariationT $ do
