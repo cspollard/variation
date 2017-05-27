@@ -32,9 +32,21 @@ import           GHC.Generics
 
 -- strict tuple
 data Pair f a = Pair !a !(f a)
-  deriving (Generic, Functor, Foldable, Traversable)
+  deriving Generic
 
 instance (Serialize a, Serialize (f a)) => Serialize (Pair f a) where
+
+instance Functor f => Functor (Pair f) where
+  fmap f (Pair x xs) = Pair (f x) (fmap f xs)
+
+
+instance Foldable f => Foldable (Pair f) where
+  foldMap f (Pair x xs) = f x `mappend` foldMap f xs
+
+
+instance Traversable f => Traversable (Pair f) where
+  traverse f (Pair x xs) = Pair <$> f x <*> traverse f xs
+
 
 fstP :: Pair f a -> a
 fstP (Pair x _) = x
@@ -42,10 +54,19 @@ fstP (Pair x _) = x
 sndP :: Pair f a -> f a
 sndP (Pair _ xs) = xs
 
+
 newtype VariationT f m a =
   VariationT { unVT :: m (Pair f a) }
-  deriving (Generic, Functor, Foldable, Traversable)
+  deriving Generic
 
+instance (Functor f, Functor m) => Functor (VariationT f m) where
+  fmap f (VariationT mp) = VariationT $ (fmap.fmap) f mp
+
+instance (Foldable f, Foldable m) => Foldable (VariationT f m) where
+  foldMap f (VariationT mp) = foldMap (foldMap f) mp
+
+instance (Traversable f, Traversable m) => Traversable (VariationT f m) where
+  traverse f (VariationT mp) = VariationT <$> (traverse.traverse) f mp
 
 instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
 
