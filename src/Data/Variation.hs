@@ -1,9 +1,8 @@
-{-# LANGUAGE DeriveFoldable       #-}
-{-# LANGUAGE DeriveFunctor        #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DeriveTraversable    #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 
 module Data.Variation
@@ -15,19 +14,20 @@ module Data.Variation
 
 import           Control.Applicative
 import           Control.DeepSeq
-import qualified Control.Monad            as M (join)
+import qualified Control.Monad             as M (join)
 import           Control.Monad.Catch
-import qualified Control.Monad.Fail       as MF
+import qualified Control.Monad.Fail        as MF
 import           Control.Monad.Morph
+import           Control.Monad.State.Class
 import           Control.Monad.Trans
 import           Data.Functor.Apply
 import           Data.Functor.Bind
 import           Data.Functor.Classes
 import           Data.Functor.Identity
 import           Data.Semigroup
-import           Data.Serialize
+import           Data.Serialize            (Serialize)
 import           Data.SMonoid
-import           Data.Variation.Instances as X
+import           Data.Variation.Instances  as X
 import           GHC.Generics
 
 
@@ -77,6 +77,7 @@ instance (Traversable f, Traversable m) => Traversable (VariationT f m) where
 
 instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
 
+
 type Variation f = VariationT f Identity
 
 runVariation :: Variation f a -> (a, f a)
@@ -89,22 +90,13 @@ runVariationT (VariationT mp) = fmap (VariationT . Identity) mp
 
 instance Show1 f => Show1 (Pair f) where
   liftShowsPrec f g n (Pair x xs) =
-    showsBinaryWith
-      f
-      (liftShowsPrec f g)
-      "Pair"
-      n
-      x
-      xs
+    showsBinaryWith f (liftShowsPrec f g) "Pair" n x xs
 
 
 instance (Show1 f, Show1 m) => Show1 (VariationT f m) where
-  liftShowsPrec f g n (VariationT mv) =
-    showsUnaryWith
-      (liftShowsPrec (liftShowsPrec f g) (liftShowList f g))
-      "VariationT"
-      n
-      mv
+  liftShowsPrec f g n (VariationT mv) = showsUnaryWith go "VariationT" n mv
+    where
+      go = liftShowsPrec (liftShowsPrec f g) (liftShowList f g)
 
 
 instance (Show1 f, Show a) => Show (Pair f a) where
@@ -145,7 +137,6 @@ instance (Apply f, SMonoid f) => Applicative (Pair f) where
       ((fs <.> xs) `sappend` (f <$> xs) `sappend` (($ x) <$> fs))
 
 
-
 instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) where
   pure = VariationT . pure . pure
 
@@ -155,11 +146,11 @@ instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) whe
 instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) where
   return = pure
 
-  VariationT x >>= f = VariationT $ do
-    (Pair vfmb fvfmb) <- fmap f <$> x
+  VariationT mx >>= f = VariationT $ do
+    (Pair vfmb fvfmb) <- fmap f <$> mx
     (Pair nom fv) <- unVT vfmb
     (Pair nv ffb) <- unVT $ sequence fvfmb
-    return . Pair nom $ join ffb `sappend` nv `sappend` fv
+    return $ Pair nom (join ffb `sappend` nv `sappend` fv)
 
 
 instance (Traversable f, Bind f, SMonoid f) => MonadTrans (VariationT f) where
@@ -185,6 +176,13 @@ instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadThrow m)
 instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m)
   => MonadCatch (VariationT f m) where
   catch (VariationT mx) f = VariationT $ catch mx (unVT . f)
+
+
+instance
+  (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m, MonadState s m)
+  => MonadState s (VariationT f m) where
+  get = lift get
+  put = lift . put
 
 
 instance MFunctor (VariationT f) where
