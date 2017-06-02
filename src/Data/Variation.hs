@@ -137,6 +137,17 @@ instance (Apply f, SMonoid f) => Applicative (Pair f) where
       ((fs <.> xs) `sappend` (f <$> xs) `sappend` (($ x) <$> fs))
 
 
+joinP :: (Bind f, SMonoid f) => Pair f (Pair f a) -> Pair f a
+joinP (Pair (Pair nn nv) v) =
+  let vv = sndP <$> v
+      vn = fstP <$> v
+  in Pair nn $ join vv `sappend` vn `sappend` nv
+
+instance (Bind f, SMonoid f) => Monad (Pair f) where
+  return = pure
+  p >>= f = joinP $ f <$> p
+
+
 instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) where
   pure = VariationT . pure . pure
 
@@ -147,10 +158,18 @@ instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) w
   return = pure
 
   VariationT mx >>= f = VariationT $ do
-    (Pair vfmb fvfmb) <- fmap f <$> mx
-    (Pair nom fv) <- unVT vfmb
-    (Pair nv ffb) <- unVT $ sequence fvfmb
-    return $ Pair nom (join ffb `sappend` nv `sappend` fv)
+    Pair na va <- mx
+    Pair nnb nvb <- unVT $ f na
+    let vb :: f (m (Pair f b))
+        vb = unVT . f <$> va
+        -- vnb = fstP <$> vb
+        -- vvb = sndP <$> vb
+    undefined
+    -- return . Pair nnb $ join vvb `sappend` nvb `sappend` vnb
+    -- (Pair vfmb fvfmb) <- fmap f <$> mx
+    -- (Pair nom fv) <- unVT vfmb
+    -- (Pair nv ffb) <- unVT $ sequence fvfmb
+    -- return $ Pair nom (join ffb `sappend` nv `sappend` fv)
 
 
 instance (Traversable f, Bind f, SMonoid f) => MonadTrans (VariationT f) where
