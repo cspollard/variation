@@ -2,228 +2,85 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 
 module Data.Variation
-  ( VariationT, variationT, runVariationT
-  , Variation, variation, runVariation
-  , nominal, variations, getNominal, getVariations
+  (Variation(..), nominal, variations
   , module X
   ) where
 
-import           Control.Applicative
 import           Control.DeepSeq
-import qualified Control.Monad             as M (join)
-import           Control.Monad.Catch
-import qualified Control.Monad.Fail        as MF
-import           Control.Monad.Morph
-import           Control.Monad.State.Class
-import           Control.Monad.Trans
+import           Control.Lens             hiding ((<.>))
 import           Data.Functor.Apply
 import           Data.Functor.Bind
 import           Data.Functor.Classes
-import           Data.Functor.Identity
 import           Data.Semigroup
-import           Data.Serialize            (Serialize)
+import           Data.Serialize           (Serialize)
 import           Data.SMonoid
-import           Data.Variation.Instances  as X
+import           Data.Variation.Instances as X ()
 import           GHC.Generics
 
 
 -- strict tuple
-data Pair f a = Pair !a !(f a)
-  deriving Generic
+data Variation f a =
+  Variation
+    { _nominal    :: !a
+    , _variations :: !(f a)
+    } deriving Generic
 
-instance (NFData a, NFData (f a)) => NFData (Pair f a)
+makeLenses ''Variation
 
-instance (Serialize a, Serialize (f a)) => Serialize (Pair f a) where
+instance (NFData a, NFData (f a)) => NFData (Variation f a)
 
-instance Functor f => Functor (Pair f) where
-  fmap f (Pair x xs) = Pair (f x) (fmap f xs)
+instance (Serialize a, Serialize (f a)) => Serialize (Variation f a) where
 
+instance Functor f => Functor (Variation f) where
+  fmap f (Variation x xs) = Variation (f x) (fmap f xs)
 
-instance Foldable f => Foldable (Pair f) where
-  foldMap f (Pair x xs) = f x `mappend` foldMap f xs
-
-
-instance Traversable f => Traversable (Pair f) where
-  traverse f (Pair x xs) = Pair <$> f x <*> traverse f xs
-
-
-fstP :: Pair f a -> a
-fstP (Pair x _) = x
-
-sndP :: Pair f a -> f a
-sndP (Pair _ xs) = xs
-
-
-newtype VariationT f m a =
-  VariationT { unVT :: m (Pair f a) }
-  deriving Generic
-
-instance
-  (NFData a, NFData (f a), NFData (m (Pair f a)))
-  => NFData (VariationT f m a)
-
-instance (Functor f, Functor m) => Functor (VariationT f m) where
-  fmap f (VariationT mp) = VariationT $ (fmap.fmap) f mp
-
-instance (Foldable f, Foldable m) => Foldable (VariationT f m) where
-  foldMap f (VariationT mp) = foldMap (foldMap f) mp
-
-instance (Traversable f, Traversable m) => Traversable (VariationT f m) where
-  traverse f (VariationT mp) = VariationT <$> (traverse.traverse) f mp
-
-instance (Serialize (m (Pair f a))) => Serialize (VariationT f m a) where
-
-
-type Variation f = VariationT f Identity
-
-runVariation :: Variation f a -> (a, f a)
-runVariation (VariationT (Identity (Pair x xs))) = (x, xs)
-
-
-runVariationT :: Functor m => VariationT f m a -> m (Variation f a)
-runVariationT (VariationT mp) = fmap (VariationT . Identity) mp
-
-
-instance Show1 f => Show1 (Pair f) where
-  liftShowsPrec f g n (Pair x xs) =
-    showsBinaryWith f (liftShowsPrec f g) "Pair" n x xs
-
-
-instance (Show1 f, Show1 m) => Show1 (VariationT f m) where
-  liftShowsPrec f g n (VariationT mv) = showsUnaryWith go "VariationT" n mv
-    where
-      go = liftShowsPrec (liftShowsPrec f g) (liftShowList f g)
-
-
-instance (Show1 f, Show a) => Show (Pair f a) where
-  showsPrec = showsPrec1
-
-
-instance (Show1 f, Show1 m, Show a) => Show (VariationT f m a) where
-  showsPrec = showsPrec1
-
-
-getNominal :: Functor m => VariationT f m a -> m a
-getNominal = fmap fstP . unVT
-
-
-getVariations :: Functor m => VariationT f m a -> m (f a)
-getVariations = fmap sndP . unVT
-
-
-nominal :: Monad m => (a -> m a) -> VariationT f m a -> VariationT f m a
-nominal f (VariationT mp) = VariationT $ do
-  Pair x xs <- mp
-  x' <- f x
-  return $ Pair x' xs
-
-
-variations :: Monad m => (f a -> m (f a)) -> VariationT f m a -> VariationT f m a
-variations f (VariationT mp) = VariationT $ do
-  Pair x xs <- mp
-  xs' <- f xs
-  return $ Pair x xs'
-
-
-instance (Apply f, SMonoid f) => Applicative (Pair f) where
-  pure = flip Pair sempty
-  Pair f fs <*> Pair x xs =
-    Pair
+instance (Apply f, SMonoid f) => Applicative (Variation f) where
+  pure = flip Variation sempty
+  Variation f fs <*> Variation x xs =
+    Variation
       (f x)
       ((fs <.> xs) `sappend` (f <$> xs) `sappend` (($ x) <$> fs))
 
 
-joinP :: (Bind f, SMonoid f) => Pair f (Pair f a) -> Pair f a
-joinP (Pair (Pair nn nv) v) =
-  let vv = sndP <$> v
-      vn = fstP <$> v
-  in Pair nn $ join vv `sappend` vn `sappend` nv
+joinV :: (Bind f, SMonoid f) => Variation f (Variation f a) -> Variation f a
+joinV (Variation (Variation nn nv) v) =
+  let vv = view variations <$> v
+      vn = view nominal <$> v
+  in Variation nn $ join vv `sappend` vn `sappend` nv
 
-instance (Bind f, SMonoid f) => Monad (Pair f) where
+instance (Bind f, SMonoid f) => Monad (Variation f) where
   return = pure
-  p >>= f = joinP $ f <$> p
+  p >>= f = joinV $ f <$> p
 
 
-instance (Apply f, SMonoid f, Applicative m) => Applicative (VariationT f m) where
-  pure = VariationT . pure . pure
-
-  VariationT f <*> VariationT x = VariationT $ liftA2 (<*>) f x
+instance Foldable f => Foldable (Variation f) where
+  foldMap f (Variation x xs) = f x `mappend` foldMap f xs
 
 
-instance (Traversable f, Bind f, SMonoid f, Monad m) => Monad (VariationT f m) where
-  return = pure
-
-  VariationT mx >>= f = VariationT $ do
-    Pair na va <- mx
-    Pair nnb nvb <- unVT $ f na
-    let vb :: f (m (Pair f b))
-        vb = unVT . f <$> va
-        -- vnb = fstP <$> vb
-        -- vvb = sndP <$> vb
-    undefined
-    -- return . Pair nnb $ join vvb `sappend` nvb `sappend` vnb
-    -- (Pair vfmb fvfmb) <- fmap f <$> mx
-    -- (Pair nom fv) <- unVT vfmb
-    -- (Pair nv ffb) <- unVT $ sequence fvfmb
-    -- return $ Pair nom (join ffb `sappend` nv `sappend` fv)
+instance Traversable f => Traversable (Variation f) where
+  traverse f (Variation x xs) = Variation <$> f x <*> traverse f xs
 
 
-instance (Traversable f, Bind f, SMonoid f) => MonadTrans (VariationT f) where
-  lift = VariationT . fmap pure
+instance SAppend f => SAppend (Variation f) where
+  Variation x xs `sappend` Variation _ ys = Variation x (xs `sappend` ys)
+
+instance SAppend f => Semigroup (Variation f a) where
+  (<>) = sappend
+
+instance (Monoid a, SMonoid f) => Monoid (Variation f a) where
+  mempty = Variation mempty sempty
+  mappend = (<>)
+
+instance Show1 f => Show1 (Variation f) where
+  liftShowsPrec f g n (Variation x xs) =
+    showsBinaryWith f (liftShowsPrec f g) "Variation" n x xs
 
 
-instance
-  (MonadIO m, Traversable f, Bind f, SMonoid f)
-  => MonadIO (VariationT f m) where
-  liftIO = lift . liftIO
-
-
-instance (MonadIO m, Traversable f, Bind f, SMonoid f, MF.MonadFail m)
-  => MF.MonadFail (VariationT f m) where
-  fail = lift . fail
-
-
-instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadThrow m)
-  => MonadThrow (VariationT f m) where
-  throwM = lift . throwM
-
-
-instance (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m)
-  => MonadCatch (VariationT f m) where
-  catch (VariationT mx) f = VariationT $ catch mx (unVT . f)
-
-
-instance
-  (MonadIO m, Traversable f, Bind f, SMonoid f, MonadCatch m, MonadState s m)
-  => MonadState s (VariationT f m) where
-  get = lift get
-  put = lift . put
-
-
-instance MFunctor (VariationT f) where
-  hoist f = VariationT . f . unVT
-
-
-instance
-  (Applicative m, Apply f, SMonoid f, Semigroup a)
-  => Semigroup (VariationT f m a) where
-  (<>) = liftA2 (<>)
-
-
-instance
-  (Applicative m, Monoid a, SMonoid f, Apply f)
-  => Monoid (VariationT f m a) where
-  mempty = pure mempty
-  mappend = liftA2 mappend
-
-
-variation :: Applicative m => a -> f a -> VariationT f m a
-variation n vs = variationT (pure n) (pure vs)
-
-
-variationT :: Applicative m => m a -> m (f a) -> VariationT f m a
-variationT n vs = VariationT $ liftA2 Pair n vs
+instance (Show1 f, Show a) => Show (Variation f a) where
+  showsPrec = showsPrec1
