@@ -20,8 +20,7 @@ import           Data.Functor.Bind
 import           Data.Functor.Classes
 import           Data.Monoid1
 import           Data.Semigroup
-import           Data.Serialize           (Serialize)
-import           Data.Variation.Instances as X ()
+import           Data.Serialize       (Serialize)
 import           GHC.Generics
 
 
