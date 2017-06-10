@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Data.Variation
-                     , Data.SMonoid
+                     , Data.Monoid1
                      , Data.Variation.Instances
   -- other-modules:
   -- other-extensions:
