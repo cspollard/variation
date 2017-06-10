@@ -1,56 +1,82 @@
+module Data.Monoid1
+  ( Unit1(..), Append1(..), Monoid1
+  ) where
 
-module Data.SMonoid where
-
-import           Control.Applicative (WrappedMonad (..))
-import           Data.Functor.Const
+import           Control.Applicative (Const (..), WrappedMonad (..))
 import qualified Data.IntMap.Strict  as IM
-import qualified Data.Map.Strict     as M
-import           Data.Semigroup
+import qualified Data.Map            as M
+import           Data.Monoid
 
-class SUnit sm where
-  sempty :: sm a
 
-instance SUnit [] where
-  sempty = []
+-- | the class of containers with a "nil" element
+class Unit1 m where
+  empty1 :: m a
 
-instance SUnit IM.IntMap where
-  sempty = IM.empty
+instance Unit1 [] where
+  empty1 = mempty
 
-instance SUnit (M.Map k) where
-  sempty = M.empty
+instance Unit1 IM.IntMap where
+  empty1 = mempty
 
-instance Monoid a => SUnit (Const a) where
-  sempty = mempty
+instance Unit1 (M.Map k) where
+  empty1 = M.empty
 
-class SAppend sm where
-  sappend :: sm a -> sm a -> sm a
+instance Monoid a => Unit1 (Const a) where
+  empty1 = mempty
 
-instance SAppend [] where
-  sappend = (++)
+instance Unit1 First where
+  empty1 = mempty
 
-instance SAppend IM.IntMap where
-  sappend = IM.union
+instance Unit1 Last where
+  empty1 = mempty
 
-instance Ord k => SAppend (M.Map k) where
-  sappend = M.union
 
-instance Monoid a => SAppend (Const a) where
-  sappend = mappend
+-- | the class of containers that can be combined regardless of type they
+-- contain
+class Append1 m where
 
-class (SUnit sm, SAppend sm) => SMonoid sm where
+  append1 :: m a -> m a -> m a
 
-instance SMonoid [] where
+instance Append1 [] where
+  append1 = mappend
 
-instance SMonoid IM.IntMap where
+instance Append1 IM.IntMap where
+  append1 = mappend
 
-instance Ord k => SMonoid (M.Map k) where
+instance Ord k => Append1 (M.Map k) where
+  append1 = mappend
 
-instance Monoid a => SMonoid (Const a) where
+instance Monoid a => Append1 (Const a) where
+  append1 = mappend
 
-instance SUnit m => SUnit (WrappedMonad m) where
-  sempty = WrapMonad sempty
+instance Append1 First where
+  append1 = mappend
 
-instance SAppend m => SAppend (WrappedMonad m) where
-  WrapMonad x `sappend` WrapMonad y = WrapMonad $ x `sappend` y
+instance Append1 Last where
+  append1 = mappend
 
-instance SMonoid m => SMonoid (WrappedMonad m) where
+
+-- | the class of containers that form a 'Monoid' regardless of the type they
+-- contain
+class (Unit1 m, Append1 m) => Monoid1 m where
+
+instance Monoid1 [] where
+
+instance Monoid1 IM.IntMap where
+
+instance Ord k => Monoid1 (M.Map k) where
+
+instance Monoid a => Monoid1 (Const a) where
+
+instance Monoid1 First where
+
+instance Monoid1 Last where
+
+
+instance Unit1 m => Unit1 (WrappedMonad m) where
+  empty1 = WrapMonad empty1
+
+instance Append1 m => Append1 (WrappedMonad m) where
+  WrapMonad x `append1` WrapMonad y = WrapMonad $ x `append1` y
+
+instance Monoid1 m => Monoid1 (WrappedMonad m) where
