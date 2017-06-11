@@ -34,36 +34,42 @@ import           Linear.Matrix        (Trace (..))
 --
 -- it is strict in both arguments.
 --
--- the 'Applicative' instance uses the 'Unit1' instance of @f@ to define pure
+-- the 'Applicative' instance uses the 'Align' instance of @f@ to define pure
+-- and '<*>':
 --
--- > pure x = Variation x empty1
+-- > instance Align f => Applicative (Variation f) where
+-- >   pure = flip Variation nil
+-- >   Variation f fs <*> Variation x xs =
+-- >     Variation
+-- >       (f x)
+-- >       (alignWith comb fs xs)
+-- >
+-- >     where
+-- >       comb (This g)    = g x
+-- >       comb (That y)    = f y
+-- >       comb (These g y) = g y
 --
--- and the 'Bind' and 'Append1' instances of @f@ to define '<*>'
+-- and the 'Trace' instance of @f@ to define '>>='
 --
 -- > Variation f fs <*> Variation x xs =
 -- >   Variation
 -- >     (f x)
 -- >     ((fs <.> xs) `append1` (f <$> xs) `append1` (($ x) <$> fs))
 --
--- the 'Monad' instance uses the 'Bind' instance of @f@ ('join') to collapse
--- collections of type @f (f a)@
+-- the 'Monad' instance uses the 'Trace' instance of @f@ ('diagonal') to
+-- collapse collections of type @f (f a)@
 --
--- > joinV :: (Bind f, Monoid1 f) => Variation f (Variation f a) -> Variation f a
--- > joinV (Variation (Variation nn nv) v) =
--- >   let vv = _variations <$> v
+-- > Variation x xs >>= f =
+-- >   let Variation nn nv = f x
+-- >       v = f <$> xs
+-- >       vv = _variations <$> v
 -- >       vn = _nominal <$> v
--- >   in Variation nn $ join vv `append1` vn `append1` nv
---
--- other useful instances:
---
--- > instance Append1 f => Semigroup (Variation f a) where
--- >   (<>) = append1
---
--- > instance (Monoid a, Monoid1 f) => Monoid (Variation f a) where
--- >   mempty = Variation mempty empty1
--- >   mappend = (<>)
-
-
+-- >   in Variation nn $ alignWith comb (diagonal vv) $ alignWith comb nv vn
+-- >
+-- >   where
+-- >     comb (This y)    = y
+-- >     comb (That y)    = y
+-- >     comb (These y _) = y
 
 data Variation f a =
   Variation
@@ -83,14 +89,6 @@ instance (NFData a, NFData (f a)) => NFData (Variation f a)
 
 instance (Serialize a, Serialize (f a)) => Serialize (Variation f a) where
 
-
--- some thoughts:
--- the requirements of Apply f and Monoid1 f appear to be related to
--- the Align typeclass in the "these" package.
--- there's something going on there.
-
--- what if we want to use ZipList here? it seems there is no monad instance
--- for ZipList, which makes it difficult to use (Variation ZipList a)...
 
 instance Align f => Applicative (Variation f) where
   pure = flip Variation nil
