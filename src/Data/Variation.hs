@@ -14,14 +14,15 @@ module Data.Variation
     , nominal, variations
   ) where
 
+import           Control.Applicative
 import           Control.DeepSeq
-import           Data.Functor.Apply
-import           Data.Functor.Bind
+import           Data.Align
 import           Data.Functor.Classes
-import           Data.Monoid1
 import           Data.Semigroup
 import           Data.Serialize       (Serialize)
+import           Data.These
 import           GHC.Generics
+import           Linear.Matrix        (Trace (..))
 
 
 -- | the variation type contains
@@ -91,37 +92,41 @@ instance (Serialize a, Serialize (f a)) => Serialize (Variation f a) where
 -- what if we want to use ZipList here? it seems there is no monad instance
 -- for ZipList, which makes it difficult to use (Variation ZipList a)...
 
-instance (Apply f, Monoid1 f) => Applicative (Variation f) where
-  pure = flip Variation empty1
+instance Align f => Applicative (Variation f) where
+  pure = flip Variation nil
   Variation f fs <*> Variation x xs =
     Variation
       (f x)
-      ((fs <.> xs) `append1` (f <$> xs) `append1` (($ x) <$> fs))
+      (alignWith comb fs xs)
+
+    where
+      comb (This g)    = g x
+      comb (That y)    = f y
+      comb (These g y) = g y
 
 
-joinV :: (Bind f, Monoid1 f) => Variation f (Variation f a) -> Variation f a
-joinV (Variation (Variation nn nv) v) =
-  let vv = _variations <$> v
-      vn = _nominal <$> v
-  in Variation nn $ join vv `append1` vn `append1` nv
-
-
-instance (Bind f, Monoid1 f) => Monad (Variation f) where
+instance (Trace f, Align f) => Monad (Variation f) where
   return = pure
-  p >>= f = joinV $ f <$> p
+  Variation x xs >>= f =
+    let Variation nn nv = f x
+        v = f <$> xs
+        vv = _variations <$> v
+        vn = _nominal <$> v
+    in Variation nn $ alignWith comb (diagonal vv) $ alignWith comb nv vn
+
+    where
+      comb (This y)    = y
+      comb (That y)    = y
+      comb (These y _) = y
 
 
-instance Append1 f => Append1 (Variation f) where
-  Variation x xs `append1` Variation _ ys = Variation x (xs `append1` ys)
+instance (Align f, Semigroup a) => Semigroup (Variation f a) where
+  (<>) = liftA2 (<>)
 
 
-instance Append1 f => Semigroup (Variation f a) where
-  (<>) = append1
-
-
-instance (Monoid a, Monoid1 f) => Monoid (Variation f a) where
-  mempty = Variation mempty empty1
-  mappend = (<>)
+instance (Align f, Monoid a) => Monoid (Variation f a) where
+  mempty = pure mempty
+  mappend = liftA2 mappend
 
 
 instance Show1 f => Show1 (Variation f) where
