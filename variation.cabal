@@ -1,5 +1,5 @@
 name:                variation
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis: nominal value with possible variations
 description:
   this package provides a Variation data type: a (mandatory) nominal value with
