@@ -34,7 +34,7 @@ import           Linear.Matrix        (Trace (..))
 --
 -- it is strict in both arguments.
 --
--- the 'Applicative' instance uses the 'Align' instance of @f@ to define pure
+-- the 'Applicative' instance uses the 'Align' instance of @f@ to define 'pure'
 -- and '<*>':
 --
 -- > instance Align f => Applicative (Variation f) where
@@ -45,16 +45,7 @@ import           Linear.Matrix        (Trace (..))
 -- >       (alignWith comb fs xs)
 -- >
 -- >     where
--- >       comb (This g)    = g x
--- >       comb (That y)    = f y
--- >       comb (These g y) = g y
---
--- and the 'Trace' instance of @f@ to define '>>='
---
--- > Variation f fs <*> Variation x xs =
--- >   Variation
--- >     (f x)
--- >     ((fs <.> xs) `append1` (f <$> xs) `append1` (($ x) <$> fs))
+-- >       comb = these ($ x) f ($)
 --
 -- the 'Monad' instance uses the 'Trace' instance of @f@ ('diagonal') to
 -- collapse collections of type @f (f a)@
@@ -66,10 +57,8 @@ import           Linear.Matrix        (Trace (..))
 -- >       vn = _nominal <$> v
 -- >   in Variation nn $ alignWith comb (diagonal vv) $ alignWith comb nv vn
 -- >
--- >   where
--- >     comb (This y)    = y
--- >     comb (That y)    = y
--- >     comb (These y _) = y
+-- >     where
+-- >       comb = these ($ x) f ($)
 
 data Variation f a =
   Variation
@@ -98,9 +87,7 @@ instance Align f => Applicative (Variation f) where
       (alignWith comb fs xs)
 
     where
-      comb (This g)    = g x
-      comb (That y)    = f y
-      comb (These g y) = g y
+      comb = these ($ x) f ($)
 
 
 instance (Trace f, Align f) => Monad (Variation f) where
@@ -113,9 +100,7 @@ instance (Trace f, Align f) => Monad (Variation f) where
     in Variation nn $ alignWith comb (diagonal vv) $ alignWith comb nv vn
 
     where
-      comb (This y)    = y
-      comb (That y)    = y
-      comb (These y _) = y
+      comb = these id id const
 
 
 instance (Align f, Semigroup a) => Semigroup (Variation f a) where
