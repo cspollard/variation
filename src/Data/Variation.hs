@@ -1,8 +1,6 @@
-{-# LANGUAGE DeriveFoldable    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE DeriveFunctor    #-}
+{-# LANGUAGE DeriveGeneric    #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 
 module Data.Variation
@@ -64,7 +62,7 @@ data Variation f a =
   Variation
     { _nominal    :: !a
     , _variations :: !(f a)
-    } deriving (Generic, Functor, Foldable, Traversable)
+    } deriving (Generic, Functor)
 
 
 nominal :: Functor f => (a -> f a) -> Variation t a -> f (Variation t a)
