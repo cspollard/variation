@@ -1,9 +1,9 @@
 name:                variation
 version:             0.3.0.0
-github:              "githubuser/test"
+github:              "cspollard/variation"
 license:             BSD3
 author:              "Chris Pollard"
-maintainer:          "Chris Pollard"
+maintainer:          "cspollard@gmail.com"
 copyright:           "2019 Chris Pollard"
 
 # Metadata used when publishing your package
