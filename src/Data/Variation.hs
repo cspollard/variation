@@ -16,7 +16,6 @@ import           Control.Applicative
 import           Control.DeepSeq
 import           Data.Align
 import           Data.Functor.Classes
-import           Data.Semigroup
 import           Data.Serialize       (Serialize)
 import           Data.These
 import           GHC.Generics

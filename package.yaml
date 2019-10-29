@@ -23,6 +23,7 @@ dependencies:
 - containers
 - semigroupoids
 - linear
+- semialign
 
 library:
   source-dirs: src
